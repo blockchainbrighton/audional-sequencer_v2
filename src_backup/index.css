@@ -1,0 +1,36 @@
+/* src/index.css */
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+}
+
+h1 {
+  text-align: center;
+}
+
+.audio-loader,
+.timeline-controller,
+.playback-controls {
+  margin: 10px 0;
+  text-align: center;
+}
+
+.audio-loader input {
+  width: 300px;
+  padding: 5px;
+}
+
+button {
+  margin: 0 5px;
+  padding: 10px 15px;
+}
+
+.waveform-container {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+#waveform-canvas {
+  border: 1px solid #ccc;
+}

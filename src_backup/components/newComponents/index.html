@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Integrated Audio Waveform Application</title>
+  <style>
+    /* Basic styling */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #waveformContainer {
+      width: 600px;
+      height: 200px;
+      position: relative;
+      border: 1px solid #ccc;
+      margin-bottom: 20px;
+      overflow: auto;
+    }
+    #controls {
+      margin-bottom: 20px;
+    }
+    #controls button {
+      margin-right: 10px;
+    }
+    #status {
+      margin-bottom: 20px;
+    }
+    #status div {
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Audio Waveform Application</h1>
+
+  <!-- Controls -->
+  <div id="controls">
+    <input type="file" id="fileInput" accept="audio/*">
+    <button id="playButton" disabled>Play</button>
+    <button id="pauseButton" disabled>Pause</button>
+    <button id="stopButton" disabled>Stop</button>
+    <button id="zoomInButton" disabled>Zoom In</button>
+    <button id="zoomOutButton" disabled>Zoom Out</button>
+  </div>
+
+  <!-- Waveform Container -->
+  <div id="waveformContainer"></div>
+
+  <!-- Status Displays -->
+  <div id="status">
+    <div id="currentTime">Current Time: 0s</div>
+    <div id="selectedRange">Selected Range: None</div>
+    <div id="zoomLevel">Zoom Level: 1.00x</div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    // Import modules
+    import WaveformRenderer from './WaveformRenderer.js';
+    import AudioLoader from './AudioLoader.js';
+    import PlaybackController from './PlaybackController.js';
+    import PlaybackIndicator from './PlaybackIndicator.js';
+    import ZoomController from './ZoomController.js';
+    import SelectionTool from './SelectionTool.js';
+
+    // Instantiate modules with controlled logging (DEBUG level for development)
+    const waveformRenderer = new WaveformRenderer({ logLevel: 'DEBUG' });
+    const audioLoader = new AudioLoader({ logLevel: 'DEBUG' });
+    const playbackController = new PlaybackController({ logLevel: 'DEBUG' });
+    const playbackIndicator = new PlaybackIndicator({ logLevel: 'DEBUG' });
+    const zoomController = new ZoomController({ logLevel: 'DEBUG' });
+    const selectionTool = new SelectionTool({ logLevel: 'DEBUG' });
+
+    // Get DOM elements
+    const fileInput = document.getElementById('fileInput');
+    const playButton = document.getElementById('playButton');
+    const pauseButton = document.getElementById('pauseButton');
+    const stopButton = document.getElementById('stopButton');
+    const zoomInButton = document.getElementById('zoomInButton');
+    const zoomOutButton = document.getElementById('zoomOutButton');
+    const waveformContainer = document.getElementById('waveformContainer');
+
+    // Status display elements
+    const currentTimeDisplay = document.getElementById('currentTime');
+    const selectedRangeDisplay = document.getElementById('selectedRange');
+    const zoomLevelDisplay = document.getElementById('zoomLevel');
+
+    // Initialize waveform renderer
+    waveformRenderer.initialize(waveformContainer, {
+      waveColor: '#00AAFF',
+      backgroundColor: '#FFFFFF',
+    });
+
+    // Initialize playback indicator
+    playbackIndicator.initialize(waveformContainer);
+
+    // Initialize zoom controller
+    zoomController.initialize(waveformRenderer);
+
+    // Utility functions to update status displays
+    function updateZoomLevelDisplay() {
+      zoomLevelDisplay.innerText = `Zoom Level: ${zoomController.zoomLevel.toFixed(2)}x`;
+    }
+
+    // Initialize zoom level display
+    updateZoomLevelDisplay();
+
+    // Override ZoomController's setZoomLevel, zoomIn, zoomOut to update display
+    const originalSetZoomLevel = zoomController.setZoomLevel.bind(zoomController);
+    zoomController.setZoomLevel = (zoomLevel) => {
+      originalSetZoomLevel(zoomLevel);
+      updateZoomLevelDisplay();
+    };
+
+    const originalZoomIn = zoomController.zoomIn.bind(zoomController);
+    zoomController.zoomIn = () => {
+      originalZoomIn();
+      updateZoomLevelDisplay();
+    };
+
+    const originalZoomOut = zoomController.zoomOut.bind(zoomController);
+    zoomController.zoomOut = () => {
+      originalZoomOut();
+      updateZoomLevelDisplay();
+    };
+
+    // Initialize selection tool only after audio is loaded
+    // Initially, selectionTool is not initialized
+
+    // File input handler
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        // Disable buttons during loading
+        disableButtons();
+
+        // Load audio file
+        audioLoader.load(file);
+
+        audioLoader.onLoad(() => {
+          const waveformData = audioLoader.getWaveformData();
+          waveformRenderer.render(waveformData);
+
+          const audioBuffer = audioLoader.getAudioBuffer();
+          playbackController.initialize(audioBuffer);
+
+          const totalDuration = audioBuffer.duration;
+          playbackIndicator.setTotalDuration(totalDuration);
+          selectionTool.initialize(waveformContainer, totalDuration); // Initialize here
+          selectionTool.setTotalDuration(totalDuration);
+
+          // Enable buttons after loading
+          enableButtons();
+        });
+
+        audioLoader.onError((error) => {
+          console.error('Audio loading error:', error);
+          // alert('Error loading audio file.'); // Removed to prevent pop-ups
+          enableButtons();
+        });
+      }
+    });
+
+    // Playback controls
+    playButton.addEventListener('click', () => {
+      playbackController.play();
+    });
+
+    pauseButton.addEventListener('click', () => {
+      playbackController.pause();
+    });
+
+    stopButton.addEventListener('click', () => {
+      playbackController.stop();
+      playbackIndicator.updatePosition(0);
+    });
+
+    // Zoom controls
+    zoomInButton.addEventListener('click', () => {
+      zoomController.zoomIn();
+    });
+
+    zoomOutButton.addEventListener('click', () => {
+      zoomController.zoomOut();
+    });
+
+    // Update playback indicator and current time display
+    playbackController.onTimeUpdate((currentTime) => {
+      playbackIndicator.updatePosition(currentTime);
+      currentTimeDisplay.innerText = `Current Time: ${currentTime.toFixed(2)}s`;
+    });
+
+    // Handle selection events
+    selectionTool.onSelection((selection) => {
+      selectedRangeDisplay.innerText = `Selected Range: ${selection.startTime.toFixed(2)}s - ${selection.endTime.toFixed(2)}s`;
+      console.log(`Selected from ${selection.startTime.toFixed(2)}s to ${selection.endTime.toFixed(2)}s`);
+    });
+
+    // Set up button event listeners
+    // (Buttons are already linked above)
+
+    // Utility functions
+    function disableButtons() {
+      playButton.disabled = true;
+      pauseButton.disabled = true;
+      stopButton.disabled = true;
+      zoomInButton.disabled = true;
+      zoomOutButton.disabled = true;
+    }
+
+    function enableButtons() {
+      playButton.disabled = false;
+      pauseButton.disabled = false;
+      stopButton.disabled = false;
+      zoomInButton.disabled = false;
+      zoomOutButton.disabled = false;
+    }
+  </script>
+</body>
+</html>
